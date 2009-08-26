@@ -65,19 +65,22 @@ sub GatherFileInformation {
     my $treeId;
     $treeId = <$hProcess>;
     close($hProcess);
+
+	if (!open($hProcess, "git rev-parse --show-cdup |")) {
+		::warn_message("Unable to determine git root directory.");
+		return();
+	}
+	
+    my $repositoryPath;
+	$repositoryPath = abs_path(<$hProcess>) . "/";
+	$repositoryPath =~ s/\//\\/g;
+	close($hProcess);
     
     if (!open($hProcess, "git --no-pager ls-tree -r --full-name $treeId $sourcePath |")) {
         ::warn_message("Unable to get the tree $treeId for $sourcePath");
         return();
     }
-    
-    $_ = abs_path($sourcePath);
-    s/\//\\/g;
-    $sourcePath = $_;
-    
-    my $repositoryPath;
-    $repositoryPath = $sourcePath . '\\';
-	
+
     my $currentLine;
     while ($currentLine = <$hProcess>) {
         if ($currentLine =~ m/^(.*)\s(.*)\s(.*)\t(.*)$/i) {
@@ -106,7 +109,7 @@ sub GatherFileInformation {
 sub GetFileInfo {
     my $self = shift;
     my $localFile = shift;
-    
+	
     if (defined $$self{'FILE_LOOKUP_TABLE'}{lc $localFile}) {
         return(@{$$self{'FILE_LOOKUP_TABLE'}{lc $localFile}});
     } else {
