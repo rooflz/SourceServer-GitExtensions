@@ -72,8 +72,14 @@ sub GatherFileInformation {
 	}
 	
     my $repositoryPath;
-	$repositoryPath = abs_path(<$hProcess>) . "/";
+	$repositoryPath = <$hProcess>;
+	$repositoryPath =~ s/[\r\n]+//g; #remove the line break on the end
+	if ("" eq $repositoryPath) {
+		$repositoryPath = ".";
+	}
+	$repositoryPath = abs_path($repositoryPath) . "/";
 	$repositoryPath =~ s/\//\\/g;
+	
 	close($hProcess);
     
     if (!open($hProcess, "git --no-pager ls-tree -r --full-name $treeId $sourcePath |")) {
