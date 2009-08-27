@@ -35,24 +35,24 @@ sub GatherFileInformation {
 	
 	my $currentDirectory = getcwd();
 	chdir($sourcePath);
-	AddMatchingCandidatesToFileLookupTable($self);
+	AddMatchingCandidatesToFileLookupTable($self); # TODO: try/catch
 	chdir($currentDirectory);
 	
     return(keys %{$$self{FILE_LOOKUP_TABLE}} != 0);
 }
 
 sub GetRootDirectoryOfRepository {
-	my $command_to_get_relative_repository_root = "git rev-parse --show-cdup";
-	my $relative_root = ExecuteCommand($command_to_get_relative_repository_root);
+	my $commandToGetRelativeRepositoryRootDirectory = "git rev-parse --show-cdup";
+	my $relativeRoot = ExecuteCommand($commandToGetRelativeRepositoryRootDirectory);
 	
-	if ($relative_root eq "") {
-		$relative_root = ".";
+	if ($relativeRoot eq "") {
+		$relativeRoot = ".";
 	}
 	
-	my $full_path_to_root = abs_path($relative_root) . "/";
-	$full_path_to_root = StandardizePathsToBackslash($full_path_to_root);
+	my $fullPathToRoot = abs_path($relativeRoot) . "/";
+	$fullPathToRoot = StandardizePathsToBackslash($fullPathToRoot);
 	
-	return($full_path_to_root);
+	return($fullPathToRoot);
 }
 sub StandardizePathsToBackslash {
 	my $path = shift;
@@ -72,8 +72,8 @@ sub AddMatchingCandidatesToFileLookupTable {
 sub GetListOfCandidateFilesToBeIndexed {
 	my $treeId = GetIdForRepositoryTree();
 
-	my $candidates = `"git --no-pager ls-tree -r --full-name $treeId"`;
-	return(split(/\n/, $candidates))
+	my $candidates = `git --no-pager ls-tree -r --full-name $treeId`;
+	return(split(/\n/, $candidates));
 }
 sub AddSourceIndexedStringToTable {
 	my $self = shift;
@@ -84,13 +84,12 @@ sub AddSourceIndexedStringToTable {
 		my $objectId = $1;
 		my $relativeFilePath = $2;
 		my $localFile = StandardizeFilename($repositoryPath . $relativeFilePath);
-		#print "Local File: $localFile\n";
 		@{$$self{FILE_LOOKUP_TABLE}{$localFile}} = ( { }, "$localFile*$objectId" );
     }
 }
 
 sub GetIdForRepositoryTree {
-	return(ExecuteCommand("git --no-pager log -1 --pretty=format:\%T")); # TODO: die if null
+	return(ExecuteCommand("git --no-pager log -1 --pretty=format:\%T"));
 }
 sub StandardizeFilename {
 	my $fileName = shift;
@@ -139,16 +138,16 @@ sub GetSha1OfFirstCommand {
 }
 sub GetOriginRepository {
 	foreach my $repositoryToEvaluate(GetRemoteRepositories()) {
-		if ($repositoryToEvaluate =~ m/^(origin)\t(.*)$/i) {
-			return($2);
+		if ($repositoryToEvaluate =~ m/^origin\t(.*)$/i) {
+			return($1);
 		}
 	}
 	
-	return(undef) # TODO: die if null?
+	return(undef);
 }
 sub GetRemoteRepositories {
 	my $remoteRepositories = `git --no-pager remote -v"`;
-	return(split(/\r\n/, $remoteRepositories))
+	return(split(/\r\n/, $remoteRepositories));
 }
 
 sub ExecuteCommand {
@@ -161,10 +160,10 @@ sub ExecuteCommand {
 	}
 	
 	$commandOutput = RemoveTrailingLineBreakCharacter($commandOutput);
-	return($commandOutput)
+	return($commandOutput);
 }
 sub RemoveTrailingLineBreakCharacter {
 	my $valueToTrim = shift;
-	$valueToTrim =~ s/[\r\n]+//g; #BUG: TOO GREEDY!
+	$valueToTrim =~ s/[\r\n]+//g; # BUG: TOO GREEDY--only strip off the last line break
 	return($valueToTrim);
 }
