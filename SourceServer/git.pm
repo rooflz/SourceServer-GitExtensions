@@ -40,7 +40,14 @@ sub GatherFileInformation {
 	
     return(keys %{$$self{FILE_LOOKUP_TABLE}} != 0);
 }
-
+sub AddMatchingCandidatesToFileLookupTable {
+	my $self = shift;
+	
+	my $repositoryPath = GetRootDirectoryOfRepository();
+	foreach my $candidate (GetListOfCandidateFilesToBeIndexed()) {
+		AddSourceIndexedCandidateToTable($self, $candidate, $repositoryPath);
+    }
+}
 sub GetRootDirectoryOfRepository {
 	my $commandToGetRelativeRepositoryRootDirectory = "git rev-parse --show-cdup";
 	my $relativeRoot = ExecuteCommand($commandToGetRelativeRepositoryRootDirectory);
@@ -54,28 +61,16 @@ sub GetRootDirectoryOfRepository {
 	
 	return($fullPathToRoot);
 }
-sub StandardizePathsToBackslash {
-	my $path = shift;
-	$path =~ s/\//\\/g;
-	return ($path);
-}
-
-sub AddMatchingCandidatesToFileLookupTable {
-	my $self = shift;
-	
-	my $repositoryPath = GetRootDirectoryOfRepository();
-	foreach my $currentLine (GetListOfCandidateFilesToBeIndexed()) {
-		AddSourceIndexedStringToTable($self, $currentLine, $repositoryPath);
-    }
-}
-
 sub GetListOfCandidateFilesToBeIndexed {
 	my $treeId = GetIdForRepositoryTree();
 
 	my $candidates = `git --no-pager ls-tree -r --full-name $treeId`;
 	return(split(/\n/, $candidates));
 }
-sub AddSourceIndexedStringToTable {
+sub GetIdForRepositoryTree {
+	return(ExecuteCommand("git --no-pager log -1 --pretty=format:\%T"));
+}
+sub AddSourceIndexedCandidateToTable {
 	my $self = shift;
 	my $lineToIndex = shift;
 	my $repositoryPath = shift;
@@ -87,10 +82,6 @@ sub AddSourceIndexedStringToTable {
 		@{$$self{FILE_LOOKUP_TABLE}{$localFile}} = ( { }, "$localFile*$objectId" );
     }
 }
-
-sub GetIdForRepositoryTree {
-	return(ExecuteCommand("git --no-pager log -1 --pretty=format:\%T"));
-}
 sub StandardizeFilename {
 	my $fileName = shift;
 	
@@ -98,6 +89,11 @@ sub StandardizeFilename {
 	$fileName = lc($fileName);
 	
 	return($fileName);
+}
+sub StandardizePathsToBackslash {
+	my $path = shift;
+	$path =~ s/\//\\/g;
+	return ($path);
 }
 
 sub GetFileInfo {
