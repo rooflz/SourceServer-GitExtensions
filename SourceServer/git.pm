@@ -13,16 +13,18 @@ package GIT;
 
 require Exporter;
 use strict;
-use File::Basename;
+use warnings;
+use Cwd;
 use Cwd 'abs_path';
-
+use constant FILE_LOOKUP_TABLE => 'FILE_LOOKUP_TABLE';
+ 
 sub new {
     my $proto = shift;
     my $class = ref($proto) || $proto;
     my $self = {};
     bless($self, $class);
     
-    $$self{'FILE_LOOKUP_TABLE'} = ();
+    $$self{FILE_LOOKUP_TABLE} = ();
     
     return($self);
 }
@@ -30,97 +32,86 @@ sub new {
 sub GatherFileInformation {
     my $self = shift;
     my $sourcePath = shift;
-    my $serverHashReference = shift;
 	
-	my $hProcess;
+	my $currentDirectory = getcwd();
+	chdir($sourcePath);
+	AddMatchingCandidatesToFileLookupTable($self);
+	chdir($currentDirectory);
 	
-	# get SHA1 of initial repository commit to be used to uniquely identify the repository (for caching).
-	if (!open($hProcess, "git rev-list --reverse master | head -1 |")) {
-		::warn_message("Unable to query for initial commit in $sourcePath");
-		return();
-	}
-	$$self{'REPOSITORY_ID'} = <$hProcess>;
-	$$self{'REPOSITORY_ID'} =~ s/[\r\n]+//g; #remove the line break on the end
-	close($hProcess);
-	
-	if (!open($hProcess, "git --no-pager remote -v |")) {
-		::warn_message("Unable to determine remote repositories for $sourcePath");
-		return();
-	}
-	
-	$$self{'ORIGIN_REPOSITORY_NODE'} = "";
-	my $currentRepository;
-	while ($currentRepository = <$hProcess>) {
-		if ($currentRepository =~ m/^(origin)\t(.*)$/i) {
-			$$self{'ORIGIN_REPOSITORY_NODE'} = $2
-		}
-	}
-	close($hProcess);
-	
-    if (!open($hProcess, "git --no-pager log -1 --pretty=format:\%T -- $sourcePath |")) {
-        ::warn_message("Unable to get the log for $sourcePath");
-        return();
-    }
-    
-    my $treeId;
-    $treeId = <$hProcess>;
-    close($hProcess);
+    return(keys %{$$self{FILE_LOOKUP_TABLE}} != 0);
+}
 
-	if (!open($hProcess, "git rev-parse --show-cdup |")) {
-		::warn_message("Unable to determine git root directory.");
-		return();
+sub GetRootDirectoryOfRepository {
+	my $command_to_get_relative_repository_root = "git rev-parse --show-cdup";
+	my $relative_root = ExecuteCommand($command_to_get_relative_repository_root);
+	
+	if ($relative_root eq "") {
+		$relative_root = ".";
 	}
 	
-    my $repositoryPath;
-	$repositoryPath = <$hProcess>;
-	$repositoryPath =~ s/[\r\n]+//g; #remove the line break on the end
-	if ("" eq $repositoryPath) {
-		$repositoryPath = ".";
-	}
-	$repositoryPath = abs_path($repositoryPath) . "/";
-	$repositoryPath =~ s/\//\\/g;
+	my $full_path_to_root = abs_path($relative_root) . "/";
+	$full_path_to_root = StandardizePathsToBackslash($full_path_to_root);
 	
-	close($hProcess);
-    
-    if (!open($hProcess, "git --no-pager ls-tree -r --full-name $treeId $sourcePath |")) {
-        ::warn_message("Unable to get the tree $treeId for $sourcePath");
-        return();
-    }
+	return($full_path_to_root);
+}
+sub StandardizePathsToBackslash {
+	my $path = shift;
+	$path =~ s/\//\\/g;
+	return ($path);
+}
 
-    my $currentLine;
-    while ($currentLine = <$hProcess>) {
-        if ($currentLine =~ m/^(.*)\s(.*)\s(.*)\t(.*)$/i) {
-            my $mode;
-            my $type;
-            my $objectId;
-            my $relativePath;
-            
-            $objectId = $3;
-
-            $_ = $4;
-            s/\//\\/g;
-            $relativePath = $_;
-            
-            my $localFile;
-            $localFile = $repositoryPath . $relativePath;
-            @{$$self{'FILE_LOOKUP_TABLE'}{lc $localFile}} = ( { }, "$localFile*$objectId" );
-        }
+sub AddMatchingCandidatesToFileLookupTable {
+	my $self = shift;
+	
+	my $repositoryPath = GetRootDirectoryOfRepository();
+	foreach my $currentLine (GetListOfCandidateFilesToBeIndexed()) {
+		AddSourceIndexedStringToTable($self, $currentLine, $repositoryPath);
     }
-    
-    close($hProcess);
-    
-    return(keys %{$$self{'FILE_LOOKUP_TABLE'}} != 0);
+}
+
+sub GetListOfCandidateFilesToBeIndexed {
+	my $treeId = GetIdForRepositoryTree();
+
+	my $candidates = `"git --no-pager ls-tree -r --full-name $treeId"`;
+	return(split(/\n/, $candidates))
+}
+sub AddSourceIndexedStringToTable {
+	my $self = shift;
+	my $lineToIndex = shift;
+	my $repositoryPath = shift;
+	
+	if ($lineToIndex =~ m/^.*\s(.*)\t(.*)$/i) {
+		my $objectId = $1;
+		my $relativeFilePath = $2;
+		my $localFile = StandardizeFilename($repositoryPath . $relativeFilePath);
+		#print "Local File: $localFile\n";
+		@{$$self{FILE_LOOKUP_TABLE}{$localFile}} = ( { }, "$localFile*$objectId" );
+    }
+}
+
+sub GetIdForRepositoryTree {
+	return(ExecuteCommand("git --no-pager log -1 --pretty=format:\%T")); # TODO: die if null
+}
+sub StandardizeFilename {
+	my $fileName = shift;
+	
+	$fileName = StandardizePathsToBackslash($fileName);
+	$fileName = lc($fileName);
+	
+	return($fileName);
 }
 
 sub GetFileInfo {
     my $self = shift;
     my $localFile = shift;
 	
-    if (defined $$self{'FILE_LOOKUP_TABLE'}{lc $localFile}) {
-        return(@{$$self{'FILE_LOOKUP_TABLE'}{lc $localFile}});
-    } else {
-        return(undef);
+	$localFile = StandardizeFilename($localFile);
+	
+    if (defined $$self{FILE_LOOKUP_TABLE}{$localFile}) {
+        return(@{$$self{FILE_LOOKUP_TABLE}{$localFile}});
     }
+	
+	return(undef);
 }
 
 sub LongName {
@@ -131,9 +122,49 @@ sub SourceStreamVariables {
     my $self = shift;
     my @stream;
 	
-	push(@stream, "GIT_REPO_ID=$$self{'REPOSITORY_ID'}");
-	push(@stream, "GIT_ORIGIN_NODE=$$self{'ORIGIN_REPOSITORY_NODE'}");
+	my $repositoryId  = GetRepositoryId();
+	my $originNode = GetOriginRepository();
+	
+	push(@stream, "GIT_REPO_ID=$repositoryId");
+	push(@stream, "GIT_ORIGIN_NODE=$originNode");
 	push(@stream, "GIT_EXTRACT_TARGET=%targ%\\%GIT_REPO_ID%\\%var2%\\%fnfile%(%var1%)");
     push(@stream, "GIT_EXTRACT_CMD=gitcontents.bat \"%GIT_ORIGIN_NODE%\" \"%targ%\\%GIT_REPO_ID%\\.localRepo\" %var2% \"%git_extract_target%\"");
     return (@stream);
+}
+sub GetRepositoryId {
+	return(GetSha1OfFirstCommand());
+}
+sub GetSha1OfFirstCommand {
+	return(ExecuteCommand("git rev-list --reverse master | head -1"));
+}
+sub GetOriginRepository {
+	foreach my $repositoryToEvaluate(GetRemoteRepositories()) {
+		if ($repositoryToEvaluate =~ m/^(origin)\t(.*)$/i) {
+			return($2);
+		}
+	}
+	
+	return(undef) # TODO: die if null?
+}
+sub GetRemoteRepositories {
+	my $remoteRepositories = `git --no-pager remote -v"`;
+	return(split(/\r\n/, $remoteRepositories))
+}
+
+sub ExecuteCommand {
+	my $commandToExecute = shift;
+	
+	my $commandOutput = `$commandToExecute`;
+	
+	if ($? < 0) {
+		die "Execution of command \"$commandToExecute\" failed.";
+	}
+	
+	$commandOutput = RemoveTrailingLineBreakCharacter($commandOutput);
+	return($commandOutput)
+}
+sub RemoveTrailingLineBreakCharacter {
+	my $valueToTrim = shift;
+	$valueToTrim =~ s/[\r\n]+//g; #BUG: TOO GREEDY!
+	return($valueToTrim);
 }
