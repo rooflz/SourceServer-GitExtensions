@@ -134,7 +134,7 @@ sub GetSha1OfFirstCommand {
 }
 sub GetOriginRepository {
 	foreach my $repositoryToEvaluate(GetRemoteRepositories()) {
-		if ($repositoryToEvaluate =~ m/^origin\t(.*)$/i) {
+		if ($repositoryToEvaluate =~ m/^origin\s(.*)(\s\(fetch\)){0,1}$/i) {
 			return($1);
 		}
 	}
@@ -143,7 +143,7 @@ sub GetOriginRepository {
 }
 sub GetRemoteRepositories {
 	my $remoteRepositories = `git --no-pager remote -v"`;
-	return(split(/\r\n/, $remoteRepositories));
+	return(split(/\n/, $remoteRepositories));
 }
 
 sub ExecuteCommand {
@@ -160,6 +160,6 @@ sub ExecuteCommand {
 }
 sub RemoveTrailingLineBreakCharacter {
 	my $valueToTrim = shift;
-	$valueToTrim =~ s/[\r\n]+//g; # BUG: TOO GREEDY--only strip off the last line break
+	$valueToTrim =~ s/[\n]+//g; # BUG: TOO GREEDY--only strip off the last line break
 	return($valueToTrim);
 }
