@@ -130,7 +130,9 @@ sub GetRepositoryId {
 	return(GetSha1OfFirstCommand());
 }
 sub GetSha1OfFirstCommand {
-	return(ExecuteCommand("git rev-list --reverse master | HEAD -1"));
+	my $result = `git rev-list --reverse master"`;
+	my @ids = split(/\n/, $result);
+	return($ids[0]);
 }
 sub GetOriginRepository {
 	foreach my $repositoryToEvaluate(GetRemoteRepositories()) {
