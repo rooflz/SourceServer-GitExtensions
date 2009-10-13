@@ -130,7 +130,7 @@ sub GetRepositoryId {
 	return(GetSha1OfFirstCommand());
 }
 sub GetSha1OfFirstCommand {
-	my $result = `git rev-list --reverse master"`;
+	my $result = `git rev-list --reverse master`;
 	my @ids = split(/\n/, $result);
 	return($ids[0]);
 }
@@ -144,7 +144,7 @@ sub GetOriginRepository {
 	return(undef);
 }
 sub GetRemoteRepositories {
-	my $remoteRepositories = `git --no-pager remote -v"`;
+	my $remoteRepositories = `git --no-pager remote -v`;
 	return(split(/\n/, $remoteRepositories));
 }
 
