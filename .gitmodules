@@ -1,0 +1,6 @@
+[submodule "lib/moq"]
+	path = lib/moq
+	url = git://github.com/altnetlibs/moq-bin
+[submodule "lib/nunit"]
+	path = lib/nunit
+	url = git://github.com/altnetlibs/nunit-bin
